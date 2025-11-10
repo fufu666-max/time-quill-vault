@@ -1,0 +1,14 @@
+(globalThis.TURBOPACK || (globalThis.TURBOPACK = [])).push([typeof document === "object" ? document.currentScript : undefined,
+"[project]/frontend/fhevm/internal/mock/fhevmMock.ts [app-client] (ecmascript, async loader)", ((__turbopack_context__) => {
+
+__turbopack_context__.v((parentImport) => {
+    return Promise.all([
+  "static/chunks/9e883_ce14d05d._.js",
+  "static/chunks/frontend_fhevm_internal_mock_fhevmMock_ts_611d4c68._.js",
+  "static/chunks/frontend_fhevm_internal_mock_fhevmMock_ts_450b8d07._.js"
+].map((chunk) => __turbopack_context__.l(chunk))).then(() => {
+        return parentImport("[project]/frontend/fhevm/internal/mock/fhevmMock.ts [app-client] (ecmascript)");
+    });
+});
+}),
+]);
