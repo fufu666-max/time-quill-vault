@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Header } from "../components/Header";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "Inheritance Rule Check",
@@ -28,14 +29,16 @@ export default async function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <div className="app-container">
-          <Providers>
-            <main className="max-w-5xl mx-auto px-4 py-8 pb-20 relative z-10">
-              <Header />
-              <div className="flex flex-col gap-6 w-full mt-8">
-                {children}
-              </div>
-            </main>
-          </Providers>
+          <ErrorBoundary>
+            <Providers>
+              <main className="max-w-5xl mx-auto px-4 py-8 pb-20 relative z-10">
+                <Header />
+                <div className="flex flex-col gap-6 w-full mt-8">
+                  {children}
+                </div>
+              </main>
+            </Providers>
+          </ErrorBoundary>
         </div>
       </body>
     </html>
