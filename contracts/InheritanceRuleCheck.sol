@@ -8,6 +8,9 @@ import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 /// @notice Checks if a child's encrypted age meets the inheritance condition (age >= 18)
 /// @dev Uses FHE to compare encrypted age without revealing the actual age value
 contract InheritanceRuleCheck is SepoliaConfig {
+    // Contract version for tracking upgrades
+    string public constant VERSION = "1.0.0";
+
     // Minimum age required for inheritance (18 years)
     uint32 private constant MIN_AGE = 18;
 
