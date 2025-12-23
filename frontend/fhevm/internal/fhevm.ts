@@ -204,9 +204,9 @@ async function resolve(
 
 export const createFhevmInstance = async (parameters: {
   provider: Eip1193Provider | string;
-  mockChains?: Record<number, string>;
+  mockChains: Record<number, string> | undefined;
   signal: AbortSignal;
-  onStatusChange?: (status: FhevmRelayerStatusType) => void;
+  onStatusChange: ((status: FhevmRelayerStatusType) => void) | undefined;
 }): Promise<FhevmInstance> => {
   const throwIfAborted = () => {
     if (signal.aborted) throw new FhevmAbortError();
