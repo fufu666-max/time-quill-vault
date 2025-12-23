@@ -174,7 +174,7 @@ async function getFHEVMRelayerMetadata(rpcUrl: string) {
   }
 }
 
-type MockResolveResult = { isMock: true; chainId: number; rpcUrl: string };
+type MockResolveResult = { isMock: true; chainId: number; rpcUrl: string | undefined };
 type GenericResolveResult = { isMock: false; chainId: number; rpcUrl: string | undefined };
 type ResolveResult = MockResolveResult | GenericResolveResult;
 
