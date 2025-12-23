@@ -7,10 +7,14 @@ async function walletClientToSigner(walletClient: any): Promise<JsonRpcSigner> {
   const network = {
     chainId: chain.id,
     name: chain.name,
-    ...(chain.contracts?.ensRegistry?.address ? { ensAddress: chain.contracts.ensRegistry.address } : {}),
   };
 
-  const provider = new BrowserProvider(transport, network);
+  const provider = new BrowserProvider(
+    transport,
+    chain.contracts?.ensRegistry?.address
+      ? { ...network, ensAddress: chain.contracts.ensRegistry.address }
+      : network
+  );
   const signer = await provider.getSigner(account.address);
   return signer;
 }
@@ -38,9 +42,13 @@ export function useEthersProvider({ chainId }: { chainId?: number } = {}) {
     const network = {
       chainId: chain.id,
       name: chain.name,
-      ...(chain.contracts?.ensRegistry?.address ? { ensAddress: chain.contracts.ensRegistry.address } : {}),
     };
-    return new BrowserProvider(transport, network);
+    return new BrowserProvider(
+      transport,
+      chain.contracts?.ensRegistry?.address
+        ? { ...network, ensAddress: chain.contracts.ensRegistry.address }
+        : network
+    );
   }, [walletClient]);
   return provider;
 }
