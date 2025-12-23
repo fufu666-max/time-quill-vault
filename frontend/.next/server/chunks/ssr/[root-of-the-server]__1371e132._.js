@@ -776,16 +776,16 @@ const INHERITANCE_RULE_CHECK_ABI = [
     }
 ];
 // Contract address - Default to localhost deployment address
-// For localhost network (chainId: 31337): 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+// For localhost network (chainId: 31337): 0x5FbDB2315678afecb367f032d93F642f64180aa3
 // Override with NEXT_PUBLIC_CONTRACT_ADDRESS environment variable if needed
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 function InheritanceCheckDemo() {
     const [mounted, setMounted] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
     const { address, isConnected } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useAccount$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useAccount"])();
     const chainId = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useChainId$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useChainId"])();
     const { writeContract, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useWriteContract$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useWriteContract"])();
     // Wait for transaction confirmation
-    const { isLoading: isConfirming, isSuccess: isConfirmed } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useWaitForTransactionReceipt$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useWaitForTransactionReceipt"])({
+    const { isLoading: isConfirming, isSuccess: isConfirmed, data: txReceipt } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useWaitForTransactionReceipt$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useWaitForTransactionReceipt"])({
         hash: txHash
     });
     const [age, setAge] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])("");
@@ -832,13 +832,17 @@ function InheritanceCheckDemo() {
         },
         enabled: mounted && isConnected && !!fhevmProvider
     });
-    // Read eligibility result
+    // Read eligibility result - Using getEligibilityResult(address) is more reliable than getMyEligibilityResult()
+    // because read-only calls often don't set msg.sender correctly.
     const { data: eligibilityHandle, refetch: refetchEligibility } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useReadContract$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useReadContract"])({
         address: CONTRACT_ADDRESS,
         abi: INHERITANCE_RULE_CHECK_ABI,
-        functionName: "getMyEligibilityResult",
+        functionName: "getEligibilityResult",
+        args: address ? [
+            address
+        ] : undefined,
         query: {
-            enabled: isConnected && CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000"
+            enabled: isConnected && !!address && CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000"
         }
     });
     const handleSubmitAge = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(async ()=>{
@@ -880,21 +884,19 @@ function InheritanceCheckDemo() {
                     inputProofHex = "0x" + inputProofHex;
                 }
             }
-            // Ensure handles[0] is a hex string
+            // Ensure handles[0] is a hex string (handles can be bigint in some fhevmjs versions)
             let handleHex;
-            if (typeof encryptedInput.handles[0] === "string") {
-                handleHex = encryptedInput.handles[0];
-                if (!handleHex.startsWith("0x")) {
-                    handleHex = "0x" + handleHex;
-                }
-                // Pad to 32 bytes (64 hex characters + 0x = 66 characters)
+            const rawHandle = encryptedInput.handles[0];
+            if (typeof rawHandle === "bigint") {
+                handleHex = "0x" + rawHandle.toString(16).padStart(64, "0");
+            } else if (typeof rawHandle === "string") {
+                handleHex = rawHandle.startsWith("0x") ? rawHandle : "0x" + rawHandle;
                 if (handleHex.length < 66) {
                     handleHex = "0x" + handleHex.slice(2).padStart(64, "0");
                 }
             } else {
-                // If it's Uint8Array or other format, convert it
-                const handleArray = encryptedInput.handles[0];
-                handleHex = "0x" + Array.from(new Uint8Array(handleArray)).map((b)=>b.toString(16).padStart(2, "0")).join("");
+                // Uint8Array or other
+                handleHex = "0x" + Array.from(new Uint8Array(rawHandle)).map((b)=>b.toString(16).padStart(2, "0")).join("");
                 if (handleHex.length < 66) {
                     handleHex = "0x" + handleHex.slice(2).padStart(64, "0");
                 }
@@ -906,13 +908,14 @@ function InheritanceCheckDemo() {
             console.log("Submitting transaction:", {
                 address: CONTRACT_ADDRESS,
                 functionName: "checkEligibility",
-                handleHex: handleHex.slice(0, 20) + "...",
-                inputProofHex: inputProofHex.slice(0, 20) + "...",
+                handleHex,
+                inputProofHex: inputProofHex.slice(0, 40) + "...",
                 chainId,
                 walletAddress: address
             });
             // Call contract - this will trigger wallet popup
             // Note: In wagmi v2, writeContract is called directly and will trigger wallet
+            // We add an explicit gas limit because FHEVM operations are heavy
             writeContract({
                 address: CONTRACT_ADDRESS,
                 abi: INHERITANCE_RULE_CHECK_ABI,
@@ -920,7 +923,8 @@ function InheritanceCheckDemo() {
                 args: [
                     handleHex,
                     inputProofHex
-                ]
+                ],
+                gas: BigInt(10000000)
             });
             // Log that writeContract was called
             console.log("writeContract called, waiting for wallet confirmation...");
@@ -941,7 +945,13 @@ function InheritanceCheckDemo() {
     // Handle transaction confirmation and refetch result
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
         if (isConfirmed && txHash) {
-            setMessage(`Transaction confirmed! Hash: ${txHash.slice(0, 10)}...`);
+            if (txReceipt?.status === "reverted") {
+                setMessage("❌ Transaction REVERTED! This usually means FHEVM node is not running or gas is insufficient.");
+                setIsSubmitting(false);
+                return;
+            }
+            const hashString = typeof txHash === 'string' ? txHash : String(txHash);
+            setMessage(`✅ Transaction confirmed! Hash: ${hashString.slice(0, 10)}...`);
             setIsSubmitting(false);
             // Refetch eligibility result after transaction is confirmed
             refetchEligibility();
@@ -952,6 +962,7 @@ function InheritanceCheckDemo() {
     }, [
         isConfirmed,
         txHash,
+        txReceipt,
         refetchEligibility
     ]);
     // Handle write errors
@@ -977,7 +988,8 @@ function InheritanceCheckDemo() {
         if (isWritePending && !txHash) {
             setMessage("Waiting for wallet confirmation... Please check your wallet popup.");
         } else if (isWritePending && txHash) {
-            setMessage(`Transaction submitted (${txHash.slice(0, 10)}...). Waiting for confirmation...`);
+            const hashString = typeof txHash === 'string' ? txHash : String(txHash);
+            setMessage(`Transaction submitted (${hashString.slice(0, 10)}...). Waiting for confirmation...`);
         }
     }, [
         isWritePending,
@@ -1039,55 +1051,108 @@ function InheritanceCheckDemo() {
     if (!mounted) {
         return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
             className: "w-full space-y-6",
-            children: [
-                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                    className: "panel-card",
-                    children: [
-                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
-                            className: "text-3xl font-bold bg-gradient-to-r from-[var(--accent)] to-[var(--success)] bg-clip-text text-transparent mb-3",
-                            children: "Encrypted Inheritance Rule Check"
-                        }, void 0, false, {
-                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 331,
-                            columnNumber: 11
-                        }, this),
-                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                            className: "text-[var(--text-secondary)] text-lg",
-                            children: [
-                                "Verify if you meet the inheritance requirement (age ",
-                                '>=',
-                                " 18) without revealing your actual age"
-                            ]
-                        }, void 0, true, {
-                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 334,
-                            columnNumber: 11
-                        }, this)
-                    ]
-                }, void 0, true, {
-                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                    lineNumber: 330,
-                    columnNumber: 9
-                }, this),
-                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                    className: "panel-card text-center",
-                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "text-xl font-semibold text-[var(--text-primary)] py-8",
-                        children: "Loading..."
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "page-transition-overlay",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "loading-spinner-container",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "loading-spinner-ring"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 344,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "loading-spinner-ring"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 345,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "loading-spinner-ring"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 346,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "loading-center-icon",
+                                children: "🔐"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 347,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 343,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "loading-text",
+                        children: "Initializing Secure Environment"
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 339,
+                        lineNumber: 349,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "loading-dots-container",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "loading-dot"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 351,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "loading-dot"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 352,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "loading-dot"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 353,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 350,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "loading-progress-bar",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "loading-progress-fill"
+                        }, void 0, false, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 356,
+                            columnNumber: 13
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 355,
                         columnNumber: 11
                     }, this)
-                }, void 0, false, {
-                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                    lineNumber: 338,
-                    columnNumber: 9
-                }, this)
-            ]
-        }, void 0, true, {
+                ]
+            }, void 0, true, {
+                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                lineNumber: 342,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-            lineNumber: 329,
+            lineNumber: 340,
             columnNumber: 7
         }, this);
     }
@@ -1098,12 +1163,19 @@ function InheritanceCheckDemo() {
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "panel-card",
                     children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "panel-shimmer"
+                        }, void 0, false, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 367,
+                            columnNumber: 11
+                        }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
                             className: "text-3xl font-bold bg-gradient-to-r from-[var(--accent)] to-[var(--success)] bg-clip-text text-transparent mb-3",
                             children: "Encrypted Inheritance Rule Check"
                         }, void 0, false, {
                             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 349,
+                            lineNumber: 368,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1115,34 +1187,210 @@ function InheritanceCheckDemo() {
                             ]
                         }, void 0, true, {
                             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 352,
+                            lineNumber: 371,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "flex gap-2 mt-4",
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                    className: "badge-decoration badge-pulse",
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                            children: "🔒"
+                                        }, void 0, false, {
+                                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                            lineNumber: 378,
+                                            columnNumber: 15
+                                        }, this),
+                                        " FHE Encrypted"
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 377,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                    className: "badge-decoration badge-decoration-success",
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                            children: "✓"
+                                        }, void 0, false, {
+                                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                            lineNumber: 381,
+                                            columnNumber: 15
+                                        }, this),
+                                        " Privacy First"
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 380,
+                                    columnNumber: 13
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 376,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                    lineNumber: 348,
+                    lineNumber: 366,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "panel-card text-center",
-                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "text-xl font-semibold text-[var(--text-primary)] py-8",
-                        children: "Please connect your wallet to check inheritance eligibility"
-                    }, void 0, false, {
-                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 357,
-                        columnNumber: 11
-                    }, this)
-                }, void 0, false, {
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "panel-shimmer"
+                        }, void 0, false, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 387,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "py-8",
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "text-6xl mb-4 result-icon",
+                                    children: "🔗"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 389,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                    className: "text-xl font-semibold text-[var(--text-primary)] mb-2",
+                                    children: "Connect Your Wallet"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 390,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                    className: "text-[var(--text-secondary)]",
+                                    children: "Please connect your wallet to check inheritance eligibility"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 393,
+                                    columnNumber: 13
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 388,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "info-card-decoration",
+                            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                className: "text-sm text-[var(--text-secondary)]",
+                                children: "Your age will be encrypted using Fully Homomorphic Encryption (FHE) technology, ensuring complete privacy."
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 400,
+                                columnNumber: 13
+                            }, this)
+                        }, void 0, false, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 399,
+                            columnNumber: 11
+                        }, this)
+                    ]
+                }, void 0, true, {
                     fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                    lineNumber: 356,
+                    lineNumber: 386,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "stats-decoration",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "stat-item",
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "stat-value",
+                                    children: "100%"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 409,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "stat-label",
+                                    children: "Private"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 410,
+                                    columnNumber: 13
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 408,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "stat-item",
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "stat-value",
+                                    children: "FHE"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 413,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "stat-label",
+                                    children: "Encrypted"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 414,
+                                    columnNumber: 13
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 412,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "stat-item",
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "stat-value",
+                                    children: "18+"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 417,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "stat-label",
+                                    children: "Requirement"
+                                }, void 0, false, {
+                                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                    lineNumber: 418,
+                                    columnNumber: 13
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 416,
+                            columnNumber: 11
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                    lineNumber: 407,
                     columnNumber: 9
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-            lineNumber: 347,
+            lineNumber: 365,
             columnNumber: 7
         }, this);
     }
@@ -1152,12 +1400,19 @@ function InheritanceCheckDemo() {
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                 className: "panel-card",
                 children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "panel-shimmer"
+                    }, void 0, false, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 429,
+                        columnNumber: 9
+                    }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
                         className: "text-3xl font-bold bg-gradient-to-r from-[var(--accent)] to-[var(--success)] bg-clip-text text-transparent mb-3",
                         children: "Encrypted Inheritance Rule Check"
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 369,
+                        lineNumber: 430,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1169,24 +1424,91 @@ function InheritanceCheckDemo() {
                         ]
                     }, void 0, true, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 372,
+                        lineNumber: 433,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "flex flex-wrap gap-2 mt-4",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "badge-decoration badge-pulse",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        children: "🔒"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 440,
+                                        columnNumber: 13
+                                    }, this),
+                                    " FHE Encrypted"
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 439,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "badge-decoration badge-decoration-success",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        children: "✓"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 443,
+                                        columnNumber: 13
+                                    }, this),
+                                    " Privacy First"
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 442,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "badge-decoration",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        children: "⚡"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 446,
+                                        columnNumber: 13
+                                    }, this),
+                                    " On-Chain Verification"
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 445,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 438,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                lineNumber: 368,
+                lineNumber: 428,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                 className: "panel-card",
                 children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "panel-shimmer"
+                    }, void 0, false, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 453,
+                        columnNumber: 9
+                    }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                         className: "panel-title mb-6",
                         children: "Enter Your Age"
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 379,
+                        lineNumber: 454,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1204,29 +1526,29 @@ function InheritanceCheckDemo() {
                                     max: "120"
                                 }, void 0, false, {
                                     fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                                    lineNumber: 382,
+                                    lineNumber: 457,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                     onClick: handleSubmitAge,
                                     disabled: !age || isSubmitting || isWritePending || isConfirming || !fhevmInstance,
-                                    className: "btn btn-primary min-w-[140px]",
+                                    className: `btn btn-primary min-w-[140px] ${isSubmitting || isWritePending || isConfirming ? 'btn-loading' : ''}`,
                                     title: !age ? "Please enter your age" : !fhevmInstance ? "FHEVM is initializing, please wait..." : isWritePending ? "Waiting for wallet confirmation..." : isConfirming ? "Transaction is confirming..." : isSubmitting ? "Submitting..." : "Click to submit your encrypted age",
                                     children: isSubmitting || isWritePending || isConfirming ? "Processing..." : "Submit Age"
                                 }, void 0, false, {
                                     fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                                    lineNumber: 391,
+                                    lineNumber: 466,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 381,
+                            lineNumber: 456,
                             columnNumber: 11
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 380,
+                        lineNumber: 455,
                         columnNumber: 9
                     }, this),
                     !age && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1234,22 +1556,22 @@ function InheritanceCheckDemo() {
                         children: "Please enter your age above"
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 415,
+                        lineNumber: 490,
                         columnNumber: 11
                     }, this),
                     age && !fhevmInstance && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "mt-4 p-3 rounded-lg bg-gradient-to-r from-[rgba(245,158,11,0.1)] to-[rgba(245,158,11,0.05)] border border-[rgba(245,158,11,0.2)]",
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                             className: "text-sm text-[var(--warning)] font-medium",
-                            children: "⏳ FHEVM is initializing... Please wait a moment before submitting."
+                            children: "FHEVM is initializing... Please wait a moment before submitting."
                         }, void 0, false, {
                             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 419,
+                            lineNumber: 494,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 418,
+                        lineNumber: 493,
                         columnNumber: 11
                     }, this),
                     fhevmInstance && fhevmStatus !== "ready" && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1257,18 +1579,18 @@ function InheritanceCheckDemo() {
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                             className: "text-sm text-[var(--warning)] font-medium",
                             children: [
-                                "⚠️ FHEVM status: ",
+                                "FHEVM status: ",
                                 fhevmStatus,
                                 ". You can try submitting, but it may fail if not ready."
                             ]
                         }, void 0, true, {
                             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 426,
+                            lineNumber: 501,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 425,
+                        lineNumber: 500,
                         columnNumber: 11
                     }, this),
                     fhevmError && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1276,35 +1598,214 @@ function InheritanceCheckDemo() {
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                             className: "text-sm text-[var(--danger)] font-medium",
                             children: [
-                                "❌ FHEVM Error: ",
+                                "FHEVM Error: ",
                                 fhevmError.message
                             ]
                         }, void 0, true, {
                             fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                            lineNumber: 433,
+                            lineNumber: 508,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 432,
+                        lineNumber: 507,
                         columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "divider-decoration",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "divider-line"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 514,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "divider-icon",
+                                children: "🔐"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 515,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "divider-line"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 516,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 513,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "info-card-decoration",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                            className: "text-sm text-[var(--text-secondary)]",
+                            children: "Your age is encrypted locally before being sent to the blockchain. The smart contract verifies eligibility without ever seeing your actual age."
+                        }, void 0, false, {
+                            fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                            lineNumber: 521,
+                            columnNumber: 11
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 520,
+                        columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                lineNumber: 378,
+                lineNumber: 452,
                 columnNumber: 7
             }, this),
-            eligibilityHandle && eligibilityHandle !== "0x0000000000000000000000000000000000000000000000000000000000000000" && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                 className: "panel-card",
                 children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "panel-shimmer"
+                    }, void 0, false, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 529,
+                        columnNumber: 9
+                    }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                         className: "panel-title mb-6",
                         children: "Eligibility Result"
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 441,
-                        columnNumber: 11
+                        lineNumber: 530,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "mb-6 p-4 rounded-lg bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.1)] text-xs font-mono space-y-2",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                className: "text-[var(--text-muted)] uppercase tracking-wider font-bold mb-2",
+                                children: "Diagnostic Info"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 534,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "flex justify-between",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "text-[var(--text-secondary)]",
+                                        children: "Network:"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 536,
+                                        columnNumber: 13
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: chainId === 31337 ? "text-[var(--success)]" : "text-[var(--danger)]",
+                                        children: chainId === 31337 ? "Localhost (31337)" : `Wrong Network (${chainId})`
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 537,
+                                        columnNumber: 13
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 535,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "flex justify-between",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "text-[var(--text-secondary)]",
+                                        children: "Contract:"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 542,
+                                        columnNumber: 13
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "text-[var(--accent)]",
+                                        children: [
+                                            CONTRACT_ADDRESS.slice(0, 10),
+                                            "...",
+                                            CONTRACT_ADDRESS.slice(-8)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 543,
+                                        columnNumber: 13
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 541,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "flex justify-between",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "text-[var(--text-secondary)]",
+                                        children: "Wallet:"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 546,
+                                        columnNumber: 13
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "text-[var(--text-primary)]",
+                                        children: [
+                                            address?.slice(0, 10),
+                                            "...",
+                                            address?.slice(-8)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 547,
+                                        columnNumber: 13
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 545,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "flex justify-between items-center pt-2 border-t border-[rgba(255,255,255,0.05)]",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "text-[var(--text-secondary)]",
+                                        children: "Raw Handle:"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 550,
+                                        columnNumber: 13
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "text-[var(--accent)] truncate max-w-[200px]",
+                                        title: eligibilityHandle,
+                                        children: eligibilityHandle ? eligibilityHandle : "null/undefined"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 551,
+                                        columnNumber: 13
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 549,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 533,
+                        columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "mb-4 p-3 rounded-lg bg-gradient-to-r from-[rgba(99,102,241,0.05)] to-[rgba(99,102,241,0.02)] border border-[rgba(99,102,241,0.15)]",
@@ -1314,67 +1815,91 @@ function InheritanceCheckDemo() {
                                 children: "Encrypted Result Handle"
                             }, void 0, false, {
                                 fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                                lineNumber: 443,
-                                columnNumber: 13
+                                lineNumber: 558,
+                                columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                                 className: "text-sm font-mono text-[var(--accent)] break-all",
+                                children: eligibilityHandle && eligibilityHandle !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? `${eligibilityHandle.slice(0, 20)}...${eligibilityHandle.slice(-10)}` : "No handle found (Waiting for transaction or wrong contract)"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 559,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: ()=>refetchEligibility(),
+                                className: "mt-2 text-xs text-[var(--accent)] underline cursor-pointer bg-transparent border-none p-0",
+                                children: "Refresh Handle From Chain"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 564,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 557,
+                        columnNumber: 9
+                    }, this),
+                    eligibilityHandle && eligibilityHandle !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: handleDecrypt,
+                                disabled: isDecrypting || !fhevmInstance,
+                                className: `btn btn-success w-full ${isDecrypting ? 'btn-loading' : ''}`,
+                                children: isDecrypting ? "Decrypting..." : decryptedResult !== null ? "Decrypt Again" : "Decrypt Result"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 574,
+                                columnNumber: 13
+                            }, this),
+                            decryptedResult !== null && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: `mt-6 p-6 rounded-xl ${decryptedResult ? "result-card result-eligible" : "result-card result-not-eligible"}`,
                                 children: [
-                                    eligibilityHandle.slice(0, 20),
-                                    "...",
-                                    eligibilityHandle.slice(-10)
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        className: "text-4xl mb-3 result-icon",
+                                        children: decryptedResult ? "✅" : "❌"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 584,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                        className: `text-2xl font-bold mb-3 ${decryptedResult ? "text-[var(--success)]" : "text-[var(--danger)]"}`,
+                                        children: decryptedResult ? "Eligible" : "Not Eligible"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 587,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                        className: "text-base text-[var(--text-secondary)]",
+                                        children: decryptedResult ? "You meet the inheritance requirement (age 18 or older)" : "You do not meet the requirement (must be 18 or older)"
+                                    }, void 0, false, {
+                                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                        lineNumber: 590,
+                                        columnNumber: 17
+                                    }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                                lineNumber: 444,
-                                columnNumber: 13
+                                lineNumber: 583,
+                                columnNumber: 15
                             }, this)
                         ]
-                    }, void 0, true, {
-                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 442,
-                        columnNumber: 11
-                    }, this),
-                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                        onClick: handleDecrypt,
-                        disabled: isDecrypting || !fhevmInstance,
-                        className: "btn btn-success w-full",
-                        children: isDecrypting ? "Decrypting..." : decryptedResult !== null ? "Decrypt Again" : "Decrypt Result"
+                    }, void 0, true) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "text-sm text-[var(--warning)] text-center py-2",
+                        children: "Result handle is zero or missing. Please submit your age first or refresh."
                     }, void 0, false, {
                         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 448,
+                        lineNumber: 599,
                         columnNumber: 11
-                    }, this),
-                    decryptedResult !== null && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                        className: `mt-6 p-6 rounded-xl ${decryptedResult ? "result-card result-eligible" : "result-card result-not-eligible"}`,
-                        children: [
-                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                className: `text-2xl font-bold mb-3 ${decryptedResult ? "text-[var(--success)]" : "text-[var(--danger)]"}`,
-                                children: decryptedResult ? "✓ Eligible" : "✗ Not Eligible"
-                            }, void 0, false, {
-                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                                lineNumber: 458,
-                                columnNumber: 15
-                            }, this),
-                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                className: "text-base text-[var(--text-secondary)]",
-                                children: decryptedResult ? "You meet the inheritance requirement (age 18 or older)" : "You do not meet the requirement (must be 18 or older)"
-                            }, void 0, false, {
-                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                                lineNumber: 461,
-                                columnNumber: 15
-                            }, this)
-                        ]
-                    }, void 0, true, {
-                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                        lineNumber: 457,
-                        columnNumber: 13
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                lineNumber: 440,
-                columnNumber: 9
+                lineNumber: 528,
+                columnNumber: 7
             }, this),
             message && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                 className: "message-box",
@@ -1383,18 +1908,102 @@ function InheritanceCheckDemo() {
                     children: message
                 }, void 0, false, {
                     fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                    lineNumber: 474,
+                    lineNumber: 608,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-                lineNumber: 473,
+                lineNumber: 607,
                 columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "stats-decoration",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "stat-item",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "stat-value",
+                                children: "100%"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 615,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "stat-label",
+                                children: "Private"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 616,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 614,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "stat-item",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "stat-value",
+                                children: "FHE"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 619,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "stat-label",
+                                children: "Encrypted"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 620,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 618,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "stat-item",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "stat-value",
+                                children: "18+"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 623,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "stat-label",
+                                children: "Requirement"
+                            }, void 0, false, {
+                                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                                lineNumber: 624,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                        lineNumber: 622,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
+                lineNumber: 613,
+                columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/frontend/components/InheritanceCheckDemo.tsx",
-        lineNumber: 366,
+        lineNumber: 426,
         columnNumber: 5
     }, this);
 }
