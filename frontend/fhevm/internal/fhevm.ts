@@ -174,7 +174,7 @@ async function getFHEVMRelayerMetadata(rpcUrl: string) {
   }
 }
 
-type MockResolveResult = { isMock: true; chainId: number; rpcUrl: string | undefined };
+type MockResolveResult = { isMock: true; chainId: number; rpcUrl: string };
 type GenericResolveResult = { isMock: false; chainId: number; rpcUrl: string | undefined };
 type ResolveResult = MockResolveResult | GenericResolveResult;
 
@@ -195,11 +195,8 @@ async function resolve(
 
   // Help Typescript solver here:
   if (Object.hasOwn(_mockChains, chainId)) {
-    if (!rpcUrl) {
-      rpcUrl = _mockChains[chainId];
-    }
-
-    return { isMock: true, chainId, rpcUrl };
+    const finalRpcUrl = rpcUrl || _mockChains[chainId];
+    return { isMock: true, chainId, rpcUrl: finalRpcUrl };
   }
 
   return { isMock: false, chainId, rpcUrl };
@@ -227,12 +224,12 @@ export const createFhevmInstance = async (parameters: {
   } = parameters;
 
   // Resolve chainId
-  const { isMock, rpcUrl, chainId } = await resolve(providerOrUrl, mockChains);
+  const result = await resolve(providerOrUrl, mockChains);
 
-  if (isMock) {
+  if (result.isMock) {
     // Throws an error if cannot connect or url does not refer to a Web3 client
     const fhevmRelayerMetadata =
-      await tryFetchFHEVMHardhatNodeRelayerMetadata(rpcUrl);
+      await tryFetchFHEVMHardhatNodeRelayerMetadata(result.rpcUrl);
 
     if (fhevmRelayerMetadata) {
       // fhevmRelayerMetadata is defined, which means rpcUrl refers to a FHEVM Hardhat Node
@@ -247,8 +244,8 @@ export const createFhevmInstance = async (parameters: {
       //////////////////////////////////////////////////////////////////////////
       const fhevmMock = await import("./mock/fhevmMock");
       const mockInstance = await fhevmMock.fhevmMockCreateInstance({
-        rpcUrl,
-        chainId,
+        rpcUrl: result.rpcUrl,
+        chainId: result.chainId,
         metadata: fhevmRelayerMetadata,
       });
 
