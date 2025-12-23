@@ -295,8 +295,8 @@ export const createFhevmInstance = async (parameters: {
   const config: FhevmInstanceConfig = {
     ...relayerSDK.SepoliaConfig,
     network: providerOrUrl,
-    publicKey: pub.publicKey,
-    publicParams: pub.publicParams,
+    ...(pub.publicKey !== undefined ? { publicKey: pub.publicKey } : {}),
+    ...(pub.publicParams !== null ? { publicParams: pub.publicParams } : {}),
   };
 
   // notify that state === "creating"
