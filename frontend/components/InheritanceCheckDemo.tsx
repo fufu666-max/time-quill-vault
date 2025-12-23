@@ -165,17 +165,18 @@ export function InheritanceCheckDemo() {
       let handleHex: string;
       const rawHandle = encryptedInput.handles[0] as any;
       
-      if (typeof rawHandle === "bigint") {
-        handleHex = "0x" + rawHandle.toString(16).padStart(64, "0");
-      } else if (typeof rawHandle === "string") {
-        handleHex = rawHandle.startsWith("0x") ? rawHandle : "0x" + rawHandle;
+      if (typeof (rawHandle as unknown) === "bigint") {
+        handleHex = "0x" + (rawHandle as any).toString(16).padStart(64, "0");
+      } else if (typeof (rawHandle as unknown) === "string") {
+        const s = rawHandle as string;
+        handleHex = s.startsWith("0x") ? s : "0x" + s;
         if (handleHex.length < 66) {
           handleHex = "0x" + handleHex.slice(2).padStart(64, "0");
         }
       } else {
         // Uint8Array or other
         handleHex = "0x" + Array.from(new Uint8Array(rawHandle as any))
-          .map((b: any) => b.toString(16).padStart(2, "0"))
+          .map((b: any) => (b as any).toString(16).padStart(2, "0"))
           .join("");
         if (handleHex.length < 66) {
           handleHex = "0x" + handleHex.slice(2).padStart(64, "0");
