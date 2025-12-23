@@ -163,7 +163,7 @@ export function InheritanceCheckDemo() {
 
       // Ensure handles[0] is a hex string (handles can be bigint in some fhevmjs versions)
       let handleHex: string;
-      const rawHandle = encryptedInput.handles[0];
+      const rawHandle = encryptedInput.handles[0] as any;
       
       if (typeof rawHandle === "bigint") {
         handleHex = "0x" + rawHandle.toString(16).padStart(64, "0");
